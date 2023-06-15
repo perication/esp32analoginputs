@@ -1,6 +1,19 @@
-#include "generated/pere_menu.h"
+#include "generated/andycontroller-1_menu.h"
 #include <Preferences.h>
 #include <ADS1X15.h>
+#include <WiFi.h>
+#include <PubSubClient.h>
+
+const char* ssid = "FRITZ!Powerline 1260E";
+const char* password = "81831059739106230277";
+const char* mqttServer = "I192.168.1.114";
+const int mqttPort = 1883;
+const char* mqttTopic = "voltaje";
+
+WiFiClient wifiClient;
+PubSubClient mqttClient(wifiClient);
+
+
 
 Preferences preferences;
 ADS1115 ADS(0x48);
@@ -14,11 +27,17 @@ const int BUZZER_PIN = 17;
 const float R1 = 15000.0;
 const float R2 = 7500.0;
 
+float lowbatlevel = 12.5;
+float thresholdRange = 0.3;
+
+bool relayActive = false;
+unsigned long activationStartTime = 0;
+
 float readVoltage(int pin) {
     int raw = ADS.readADC(pin);
     float voltage = ADS.toVoltage(raw);
     Serial.println("pin: " + String(pin) + " raw: " + String(raw) + " vol: " + String(voltage));
-    voltage = voltage / (R2/(R1 + R2));
+    voltage = voltage / (R2 / (R1 + R2));
     return voltage;
 }
 
@@ -29,19 +48,30 @@ String createKeyForMenuItem(AnalogMenuItem menuItem) {
 
 void initDefaultPreferenceFloat(AnalogMenuItem menuItem, float defaultValue) {
     const char *keyString = createKeyForMenuItem(menuItem).c_str();
-    if(!preferences.isKey(keyString)) {
+    if (!preferences.isKey(keyString)) {
         preferences.putFloat(keyString, defaultValue);
     }
     menuItem.setFromFloatingPointValue(preferences.getFloat(keyString));
 }
 
 void initMenuByPreferences() {
-    initDefaultPreferenceFloat(menuThreshold, 14.2);
+    initDefaultPreferenceFloat(menuThreshold, 13.7);
     initDefaultPreferenceFloat(menuTrim, 0.0);
+    initDefaultPreferenceFloat(menuLowbatlevel, 12.5);
 }
 
 void setup() {
-    Serial.begin(115200);
+    
+    
+  Serial.begin(115200);
+  WiFi.begin(ssid, password);
+  
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(1000);
+    Serial.println("Connecting to WiFi...");
+  }
+    
+   // Serial.begin(115200); esto para qué es? me imagino que una vez ya sobra
 
     ADS.begin();
     Serial.println("ADS busy?: " + String(ADS.isBusy()) + " connected: " + String(ADS.isConnected()) + " ready: " + String(ADS.isReady()));
@@ -70,16 +100,29 @@ void setup() {
         menuBattery.setFromFloatingPointValue(trimmedVoltage);
 
         float thresholdV = menuThreshold.getAsFloatingPointValue();
-        if(trimmedVoltage > thresholdV) {
-            digitalWrite(RELAY_1_PIN, LOW);
-            digitalWrite(RELAY_2_PIN, LOW);
+
+        if (relayActive) {
+            if (batteryV < lowbatlevel) {
+                relayActive = false;
+                digitalWrite(RELAY_1_PIN, HIGH);
+                digitalWrite(RELAY_2_PIN, HIGH);
+                activationStartTime = 0;
+            }
         } else {
-            digitalWrite(RELAY_1_PIN, HIGH);
-            digitalWrite(RELAY_2_PIN, HIGH);
+            if (trimmedVoltage > thresholdV - thresholdRange && trimmedVoltage < thresholdV + thresholdRange) {
+                if (activationStartTime == 0) {
+                    activationStartTime = millis();
+                } else if (millis() - activationStartTime >= 60000) {
+                    relayActive = true;
+                    digitalWrite(RELAY_1_PIN, LOW);
+                    digitalWrite(RELAY_2_PIN, LOW);
+                }
+            } else {
+                activationStartTime = 0;
+            }
         }
 
     }, TIME_MILLIS);
-
 }
 
 void loop() {
@@ -96,4 +139,9 @@ void CALLBACK_FUNCTION onVoltageThresholdChange(int id) {
 
 void CALLBACK_FUNCTION onTrimChanged(int id) {
     updatePreferenceByMenuItemFloat(menuTrim);
+}
+
+
+void CALLBACK_FUNCTION onlowbatlevelchanged(int id) {
+    updatePreferenceByMenuItemFloat(menuLowbatlevel);
 }

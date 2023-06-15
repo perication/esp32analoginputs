@@ -1,7 +1,7 @@
 {
   "version": "1.00",
   "projectName": "",
-  "author": "andreas",
+  "author": "perem1",
   "items": [
     {
       "parentId": 0,
@@ -46,9 +46,9 @@
     {
       "parentId": 0,
       "type": "analogItem",
-      "defaultValue": "1420",
+      "defaultValue": "1370",
       "item": {
-        "maxValue": 2500,
+        "maxValue": 1370,
         "offset": 0,
         "divisor": 100,
         "unitName": "V",
@@ -79,6 +79,27 @@
         "id": 4,
         "eepromAddress": 10,
         "functionName": "onTrimChanged",
+        "readOnly": false,
+        "localOnly": false,
+        "visible": true,
+        "staticDataInRAM": false
+      }
+    },
+    {
+      "parentId": 0,
+      "type": "analogItem",
+      "defaultValue": "50",
+      "item": {
+        "maxValue": 100,
+        "offset": 1200,
+        "divisor": 100,
+        "unitName": "V",
+        "step": 1,
+        "name": "Lowbatlevel",
+        "variableName": "Lowbatlevel",
+        "id": 5,
+        "eepromAddress": 12,
+        "functionName": "onlowbatlevelchanged",
         "readOnly": false,
         "localOnly": false,
         "visible": true,

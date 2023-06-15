@@ -27,6 +27,7 @@ extern GraphicsDeviceRenderer renderer;
 
 
 // Global Menu Item exports
+extern AnalogMenuItem menuLowbatlevel;
 extern AnalogMenuItem menuTrim;
 extern AnalogMenuItem menuThreshold;
 extern AnalogMenuItem menuInternal;
@@ -41,5 +42,6 @@ void setupMenu();
 
 void CALLBACK_FUNCTION onTrimChanged(int id);
 void CALLBACK_FUNCTION onVoltageThresholdChange(int id);
+void CALLBACK_FUNCTION onlowbatlevelchanged(int id);
 
 #endif // MENU_GENERATED_CODE_H

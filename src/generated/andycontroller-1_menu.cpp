@@ -9,7 +9,7 @@
  */
 
 #include <tcMenu.h>
-#include "pere_menu.h"
+#include "andycontroller-1_menu.h"
 #include "../ThemeCoolBlueTraditional.h"
 
 // Global variable declarations
@@ -20,10 +20,12 @@ TfteSpiDrawable gfxDrawable(&gfx, 0);
 GraphicsDeviceRenderer renderer(30, applicationInfo.name, &gfxDrawable);
 
 // Global Menu Item declarations
+const PROGMEM AnalogMenuInfo minfoLowbatlevel = { "Lowbatlevel", 5, 12, 100, onlowbatlevelchanged, 1200, 100, "V" };
+AnalogMenuItem menuLowbatlevel(&minfoLowbatlevel, 50, nullptr, INFO_LOCATION_PGM);
 const PROGMEM AnalogMenuInfo minfoTrim = { "Trim", 4, 10, 200, onTrimChanged, -100, 100, "V" };
-AnalogMenuItem menuTrim(&minfoTrim, 100, nullptr, INFO_LOCATION_PGM);
-const PROGMEM AnalogMenuInfo minfoThreshold = { "Threshold", 1, 4, 2500, onVoltageThresholdChange, 0, 100, "V" };
-AnalogMenuItem menuThreshold(&minfoThreshold, 1420, &menuTrim, INFO_LOCATION_PGM);
+AnalogMenuItem menuTrim(&minfoTrim, 100, &menuLowbatlevel, INFO_LOCATION_PGM);
+const PROGMEM AnalogMenuInfo minfoThreshold = { "Threshold", 1, 4, 1370, onVoltageThresholdChange, 0, 100, "V" };
+AnalogMenuItem menuThreshold(&minfoThreshold, 1370, &menuTrim, INFO_LOCATION_PGM);
 const PROGMEM AnalogMenuInfo minfoInternal = { "Internal", 3, 8, 600, NO_CALLBACK, 0, 100, "V" };
 AnalogMenuItem menuInternal(&minfoInternal, 0, &menuThreshold, INFO_LOCATION_PGM);
 const PROGMEM AnalogMenuInfo minfoBattery = { "Battery", 2, 6, 2500, NO_CALLBACK, 0, 100, "V" };
