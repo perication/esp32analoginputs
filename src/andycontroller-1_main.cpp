@@ -71,7 +71,11 @@ void setup() {
     Serial.println("Connecting to WiFi...");
   }
     
-   // Serial.begin(115200); esto para qué es? me imagino que una vez ya sobra
+
+    Serial.println("Connected to WiFi");
+    mqttClient.setServer(mqttServer, mqttPort);
+
+  
 
     ADS.begin();
     Serial.println("ADS busy?: " + String(ADS.isBusy()) + " connected: " + String(ADS.isConnected()) + " ready: " + String(ADS.isReady()));
