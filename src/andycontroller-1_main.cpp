@@ -1,151 +1,106 @@
-#include "generated/andycontroller-1_menu.h"
 #include <Preferences.h>
 #include <ADS1X15.h>
 #include <WiFi.h>
 #include <PubSubClient.h>
 
-const char* ssid = "FRITZ!Powerline 1260E";
-const char* password = "81831059739106230277";
-const char* mqttServer = "I192.168.1.114";
+const char* ssid = "TP-Link_46E4";
+const char* password = "77793003";
+const char* mqttServer = "test.mosquitto.org";
+const char* mqtt_username = "perication";
+const char* mqtt_password = "public";
 const int mqttPort = 1883;
 const char* mqttTopic = "voltaje";
+int retries;
 
 WiFiClient wifiClient;
 PubSubClient mqttClient(wifiClient);
 
-
-
-Preferences preferences;
 ADS1115 ADS(0x48);
 
-const int RELAY_1_PIN = 26;
-const int RELAY_2_PIN = 27;
-
-const int BUZZER_PIN = 17;
-
-// Floats for resistor values in divider (in ohms); to measure up to 15V
 const float R1 = 15000.0;
 const float R2 = 7500.0;
-
-float lowbatlevel = 12.5;
-float thresholdRange = 0.3;
-
-bool relayActive = false;
-unsigned long activationStartTime = 0;
 
 float readVoltage(int pin) {
     int raw = ADS.readADC(pin);
     float voltage = ADS.toVoltage(raw);
     Serial.println("pin: " + String(pin) + " raw: " + String(raw) + " vol: " + String(voltage));
-    voltage = voltage / (R2 / (R1 + R2));
-    return voltage;
+    
+    // Ajuste del voltaje con las resistencias
+    float adjustedVoltage = voltage / (R2 / (R1 + R2));
+    
+    return adjustedVoltage;
 }
 
-String createKeyForMenuItem(AnalogMenuItem menuItem) {
-    Serial.println("m" + String(menuItem.getId()));
-    return ("m" + String(menuItem.getId()));
-}
 
-void initDefaultPreferenceFloat(AnalogMenuItem menuItem, float defaultValue) {
-    const char *keyString = createKeyForMenuItem(menuItem).c_str();
-    if (!preferences.isKey(keyString)) {
-        preferences.putFloat(keyString, defaultValue);
+void setupWiFi() {
+    int retries = 0;
+    const int maxRetries = 30;
+
+    WiFi.begin(ssid, password);
+    while (WiFi.status() != WL_CONNECTED) {
+        if (retries < maxRetries) {
+            delay(1000);
+            Serial.println("Conectando a WiFi...");
+            retries++;
+            Serial.println("Reintentando: " + String(retries));
+        } else {
+            Serial.println("Error al conectar a WiFi después de " + String(maxRetries) + " intentos.");
+            break;
+        }
     }
-    menuItem.setFromFloatingPointValue(preferences.getFloat(keyString));
+        if (WiFi.status() == WL_CONNECTED) {
+        Serial.println("Conexión WiFi establecida");
+        Serial.print("Dirección IP: ");
+        Serial.println(WiFi.localIP());
+    } else {
+        Serial.println("No se pudo establecer la conexión WiFi. Reiniciando Arduino.");
+        ESP.restart();
+    }
 }
 
-void initMenuByPreferences() {
-    initDefaultPreferenceFloat(menuThreshold, 13.7);
-    initDefaultPreferenceFloat(menuTrim, 0.0);
-    initDefaultPreferenceFloat(menuLowbatlevel, 12.5);
+void setupMQTT() {
+    mqttClient.setServer(mqttServer, mqttPort);
+
+}
+
+void reconnectMQTT() {
+   while (!mqttClient.connected()) {
+    Serial.println("Conectando al servidor MQTT...");
+    if (mqttClient.connect("denky32")) { // Nombre único del cliente MQTT
+      Serial.println("Conexión MQTT establecida");
+    } else {
+      Serial.print("Error al conectar al servidor MQTT. Estado: ");
+      Serial.println(mqttClient.state());
+      delay(5000);
+        }
+    }
 }
 
 void setup() {
-    
-    
-  Serial.begin(115200);
-  WiFi.begin(ssid, password);
-  
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(1000);
-    Serial.println("Connecting to WiFi...");
-  }
-    
-
-    Serial.println("Connected to WiFi");
-    mqttClient.setServer(mqttServer, mqttPort);
-
-  
-
+    Serial.begin(115200);
     ADS.begin();
     Serial.println("ADS busy?: " + String(ADS.isBusy()) + " connected: " + String(ADS.isConnected()) + " ready: " + String(ADS.isReady()));
 
-    setupMenu();
-    renderer.turnOffResetLogic();
-
-    preferences.begin("PereController", false);
-    initMenuByPreferences();
-
-    pinMode(BUZZER_PIN, OUTPUT);
-    pinMode(RELAY_1_PIN, OUTPUT);
-    pinMode(RELAY_2_PIN, OUTPUT);
-
-    digitalWrite(RELAY_1_PIN, HIGH);
-    digitalWrite(RELAY_2_PIN, HIGH);
-
-    taskManager.scheduleFixedRate(1000, [] {
-        int raw = ADS.readADC(1);
-        float internalV = ADS.toVoltage(raw);
-        menuInternal.setFromFloatingPointValue(internalV);
-
-        float batteryV = readVoltage(0);
-        float trim = menuTrim.getAsFloatingPointValue();
-        float trimmedVoltage = batteryV + trim;
-        menuBattery.setFromFloatingPointValue(trimmedVoltage);
-
-        float thresholdV = menuThreshold.getAsFloatingPointValue();
-
-        if (relayActive) {
-            if (batteryV < lowbatlevel) {
-                relayActive = false;
-                digitalWrite(RELAY_1_PIN, HIGH);
-                digitalWrite(RELAY_2_PIN, HIGH);
-                activationStartTime = 0;
-            }
-        } else {
-            if (trimmedVoltage > thresholdV - thresholdRange && trimmedVoltage < thresholdV + thresholdRange) {
-                if (activationStartTime == 0) {
-                    activationStartTime = millis();
-                } else if (millis() - activationStartTime >= 60000) {
-                    relayActive = true;
-                    digitalWrite(RELAY_1_PIN, LOW);
-                    digitalWrite(RELAY_2_PIN, LOW);
-                }
-            } else {
-                activationStartTime = 0;
-            }
-        }
-
-    }, TIME_MILLIS);
+    setupWiFi();
+    setupMQTT();
 }
 
 void loop() {
-    taskManager.runLoop();
-}
+    if (!mqttClient.connected()) {
+        reconnectMQTT();
+    }
+    mqttClient.loop();
 
-void updatePreferenceByMenuItemFloat(AnalogMenuItem menuItem) {
-    preferences.putFloat(createKeyForMenuItem(menuItem).c_str(), menuItem.getAsFloatingPointValue());
-}
-
-void CALLBACK_FUNCTION onVoltageThresholdChange(int id) {
-    updatePreferenceByMenuItemFloat(menuThreshold);
-}
-
-void CALLBACK_FUNCTION onTrimChanged(int id) {
-    updatePreferenceByMenuItemFloat(menuTrim);
-}
+    float voltage = readVoltage(0);
+    Serial.println("Voltage: " + String(voltage));
 
 
-void CALLBACK_FUNCTION onlowbatlevelchanged(int id) {
-    updatePreferenceByMenuItemFloat(menuLowbatlevel);
+    // Envío del voltaje a través de MQTT
+    char payload[10];
+    sprintf(payload, "%.2f", voltage);
+    mqttClient.publish(mqttTopic, payload);
+    Serial.print("Payload: ");
+    Serial.println(payload);
+
+    delay(5000);
 }
